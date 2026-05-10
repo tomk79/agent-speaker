@@ -54,6 +54,7 @@ async function rewriteTranscriptForSpeech({
   transcript,
   signal,
   fetchImpl = global.fetch,
+  logToStdout = false,
 }) {
   const trimmed = transcript.trim();
   if (!trimmed) {
@@ -61,19 +62,27 @@ async function rewriteTranscriptForSpeech({
   }
 
   const url = new URL('/api/chat', baseUrl);
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content:
+        '以下はターミナルログから抽出したテキストです。音声読み上げに適した日本語だけを返してください（説明や前置きは不要）。\n\n' +
+        trimmed,
+    },
+  ];
   const payload = {
     model,
     stream: false,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content:
-          '以下はターミナルログから抽出したテキストです。音声読み上げに適した日本語だけを返してください（説明や前置きは不要）。\n\n' +
-          trimmed,
-      },
-    ],
+    messages,
   };
+
+  if (logToStdout) {
+    console.log('=== Ollama chat: system message ===');
+    console.log(messages[0].content);
+    console.log('=== Ollama chat: user message ===');
+    console.log(messages[1].content);
+  }
 
   const response = await fetchImpl(url, {
     method: 'POST',
@@ -96,7 +105,13 @@ async function rewriteTranscriptForSpeech({
     (typeof data.response === 'string' && data.response) ||
     '';
 
-  return collapseWhitespace(raw);
+  const speechText = collapseWhitespace(raw);
+  if (logToStdout && speechText) {
+    console.log('=== Ollama chat: assistant speech text ===');
+    console.log(speechText);
+  }
+
+  return speechText;
 }
 
 module.exports = {

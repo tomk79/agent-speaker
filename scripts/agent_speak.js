@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Tail a terminal agent log and speak via macOS `say`.
 // Default path rewrites with local Ollama; use --legacy-line-speak for plain line mode.
+// In default mode, each Ollama request logs system/user messages and assistant speech text to stdout.
 
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
@@ -40,7 +41,7 @@ function printUsage(exitCode = 0) {
     '  --poll-interval <ms>      File poll interval (default 400)',
     '  --ollama-url <url>        Ollama API base URL',
     '  --ollama-model <name>     Ollama model name',
-    '  --debounce-ms <ms>        Quiet period before calling Ollama',
+    '  --debounce-ms <ms>        Quiet period before calling Ollama (default 20000)',
     '  --snapshot-max-chars <n>  Max characters sent to Ollama',
     '  --legacy-line-speak       Skip Ollama; speak cleaned lines directly',
     '',
@@ -184,6 +185,7 @@ async function runRewriteCycle(epoch) {
       model: options.ollamaModel,
       transcript,
       signal: controller.signal,
+      logToStdout: true,
     });
   } catch (error) {
     if (error && error.name === 'AbortError') {

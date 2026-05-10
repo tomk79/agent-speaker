@@ -11,8 +11,8 @@ test('assertModelExists rejects when model missing', async () => {
     });
 
   await assert.rejects(
-    () => assertModelExists('http://127.0.0.1:11434', 'gpt-oss-20b', fetchImpl),
-    /gpt-oss-20b/
+    () => assertModelExists('http://127.0.0.1:11434', 'gpt-oss:20b', fetchImpl),
+    /gpt-oss:20b/
   );
 });
 
@@ -21,7 +21,7 @@ test('rewriteTranscriptForSpeech posts chat payload', async () => {
     assert.equal(String(url), 'http://127.0.0.1:11434/api/chat');
     assert.equal(init.method, 'POST');
     const body = JSON.parse(init.body);
-    assert.equal(body.model, 'gpt-oss-20b');
+    assert.equal(body.model, 'gpt-oss:20b');
     assert.equal(body.stream, false);
     assert.ok(Array.isArray(body.messages));
     assert.equal(body.messages[0].role, 'system');
@@ -40,10 +40,11 @@ test('rewriteTranscriptForSpeech posts chat payload', async () => {
 
   const text = await rewriteTranscriptForSpeech({
     baseUrl: 'http://127.0.0.1:11434',
-    model: 'gpt-oss-20b',
+    model: 'gpt-oss:20b',
     transcript: 'hello world',
     signal: undefined,
     fetchImpl,
+    logToStdout: false,
   });
 
   assert.equal(text, 'エージェントが説明を続けています。');

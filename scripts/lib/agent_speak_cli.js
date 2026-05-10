@@ -1,9 +1,9 @@
 const path = require('node:path');
 
 const DEFAULT_POLL_INTERVAL = 400;
-const DEFAULT_DEBOUNCE_MS = 600;
+const DEFAULT_DEBOUNCE_MS = 20000;
 const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
-const DEFAULT_OLLAMA_MODEL = 'gpt-oss-20b';
+const DEFAULT_OLLAMA_MODEL = 'gpt-oss:20b';
 const DEFAULT_SNAPSHOT_MAX_CHARS = 48000;
 
 class CliHelp extends Error {

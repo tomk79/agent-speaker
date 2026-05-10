@@ -13,6 +13,7 @@ test('parseArgs parses defaults', () => {
   assert.equal(opts.filePath, path.resolve('/tmp/agent.log'));
   assert.equal(opts.legacyLineSpeak, false);
   assert.match(opts.ollamaUrl, /^http:/);
+  assert.equal(opts.debounceMs, 20000);
 });
 
 test('parseArgs throws CliHelp', () => {
