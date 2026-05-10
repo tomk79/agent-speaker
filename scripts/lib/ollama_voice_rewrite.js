@@ -1,5 +1,56 @@
 const { collapseWhitespace } = require('./agent_log_preprocess.js');
 
+function mergeAbortSignalWithTimeout(parentSignal, timeoutMs) {
+  const controller = new AbortController();
+  let timedOut = false;
+  let timerId = null;
+
+  const cleanup = () => {
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
+    if (parentSignal) {
+      parentSignal.removeEventListener('abort', onParentAbort);
+    }
+  };
+
+  const onParentAbort = () => {
+    cleanup();
+    controller.abort();
+  };
+
+  const onTimer = () => {
+    timedOut = true;
+    cleanup();
+    controller.abort();
+  };
+
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error('timeoutMs must be a positive finite number.');
+  }
+
+  if (parentSignal?.aborted) {
+    controller.abort();
+    return {
+      signal: controller.signal,
+      dispose: () => {},
+      getDidTimeout: () => false,
+    };
+  }
+
+  timerId = setTimeout(onTimer, timeoutMs);
+  if (parentSignal) {
+    parentSignal.addEventListener('abort', onParentAbort);
+  }
+
+  return {
+    signal: controller.signal,
+    dispose: cleanup,
+    getDidTimeout: () => timedOut,
+  };
+}
+
 const SYSTEM_PROMPT = `あなたはターミナル上のコーディングエージェントのログを、音声読み上げ用に整える編集者です。
 次のルールを守ってください。
 - 出力は日本語のみ、聞き取りやすい短い段落にする。
@@ -55,6 +106,7 @@ async function rewriteTranscriptForSpeech({
   signal,
   fetchImpl = global.fetch,
   logToStdout = false,
+  timeoutMs,
 }) {
   const trimmed = transcript.trim();
   if (!trimmed) {
@@ -82,33 +134,61 @@ async function rewriteTranscriptForSpeech({
     console.log(messages[0].content);
     console.log('=== Ollama chat: user message ===');
     console.log(messages[1].content);
+    console.log('/ === Ollama chat: prompt end ===');
+    console.log('/ --------------------------------------' + "\n\n\n");
+    console.error(
+      `[agent-speak] Ollama の応答を待っています（モデル: ${model}, タイムアウト ${timeoutMs} ms）。stdout はこの後、応答が返るまで更新されません。`
+    );
   }
 
-  const response = await fetchImpl(url, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const merged = mergeAbortSignalWithTimeout(signal, timeoutMs);
+  let data;
+  try {
+    const response = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: merged.signal,
+    });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Ollama /api/chat HTTP ${response.status}: ${body.slice(0, 240)}`);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Ollama /api/chat HTTP ${response.status}: ${body.slice(0, 240)}`);
+    }
+
+    data = await response.json();
+  } catch (error) {
+    if (error && error.name === 'AbortError') {
+      if (merged.getDidTimeout()) {
+        throw new Error(`Ollama /api/chat timed out after ${timeoutMs} ms`);
+      }
+      throw error;
+    }
+    throw error;
+  } finally {
+    merged.dispose();
   }
 
-  const data = await response.json();
   const raw =
     (data.message && typeof data.message.content === 'string' && data.message.content) ||
     (typeof data.response === 'string' && data.response) ||
     '';
 
   const speechText = collapseWhitespace(raw);
-  if (logToStdout && speechText) {
-    console.log('=== Ollama chat: assistant speech text ===');
-    console.log(speechText);
+  if (logToStdout) {
+    if (speechText) {
+      console.log('=== Ollama chat: assistant speech text ===');
+      console.log(speechText);
+      console.log('/ === Ollama chat: assistant speech text end ===');
+      console.log('/ --------------------------------------' + "\n\n\n");
+    } else {
+      console.error(
+        '[agent-speak] Ollama の応答に読み上げ用の本文がありません（空または想定外の JSON）。読み上げはスキップされます。'
+      );
+    }
   }
 
   return speechText;

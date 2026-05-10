@@ -3,8 +3,11 @@ const path = require('node:path');
 const DEFAULT_POLL_INTERVAL = 400;
 const DEFAULT_DEBOUNCE_MS = 20000;
 const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
-const DEFAULT_OLLAMA_MODEL = 'gpt-oss:20b';
+const DEFAULT_OLLAMA_MODEL = 'gemma4:e4b';
 const DEFAULT_SNAPSHOT_MAX_CHARS = 48000;
+const DEFAULT_LLM_TAIL_LINES = 40;
+const DEFAULT_LLM_PROMPT_MAX_CHARS = 12000;
+const DEFAULT_OLLAMA_TIMEOUT_MS = 180000;
 
 class CliHelp extends Error {
   constructor() {
@@ -47,6 +50,9 @@ function parseArgs(argv) {
     ollamaModel: DEFAULT_OLLAMA_MODEL,
     debounceMs: DEFAULT_DEBOUNCE_MS,
     snapshotMaxChars: DEFAULT_SNAPSHOT_MAX_CHARS,
+    llmTailLines: DEFAULT_LLM_TAIL_LINES,
+    llmPromptMaxChars: DEFAULT_LLM_PROMPT_MAX_CHARS,
+    ollamaTimeoutMs: DEFAULT_OLLAMA_TIMEOUT_MS,
     legacyLineSpeak: false,
   };
 
@@ -113,6 +119,27 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--llm-tail-lines') {
+      const value = readOptionValue(argv, index, '--llm-tail-lines');
+      options.llmTailLines = readPositiveInteger(value, '--llm-tail-lines');
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--llm-prompt-max-chars') {
+      const value = readOptionValue(argv, index, '--llm-prompt-max-chars');
+      options.llmPromptMaxChars = readPositiveInteger(value, '--llm-prompt-max-chars');
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--ollama-timeout-ms') {
+      const value = readOptionValue(argv, index, '--ollama-timeout-ms');
+      options.ollamaTimeoutMs = readPositiveInteger(value, '--ollama-timeout-ms');
+      index += 1;
+      continue;
+    }
+
     if (arg.startsWith('--')) {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -137,6 +164,9 @@ module.exports = {
   DEFAULT_OLLAMA_URL,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_SNAPSHOT_MAX_CHARS,
+  DEFAULT_LLM_TAIL_LINES,
+  DEFAULT_LLM_PROMPT_MAX_CHARS,
+  DEFAULT_OLLAMA_TIMEOUT_MS,
   CliHelp,
   CliMissingLogPath,
   readOptionValue,

@@ -10,7 +10,7 @@ git clone https://github.com/tomk79/agent-speaker.git
 
 - **macOS**（`say` を使用）
 - **Node.js 18 以上**（組み込み `fetch` を利用）
-- **既定モード**: [Ollama](https://ollama.com/) が起動しており、モデル **`gpt-oss:20b`** が利用できること（例: `ollama pull gpt-oss:20b`）。別モデルを使う場合は `--ollama-model` で指定する。
+- **既定モード**: [Ollama](https://ollama.com/) が起動しており、モデル **`gemma4:e4b`** が利用できること（例: `ollama pull gemma4:e4b`）。別モデルを使う場合は `--ollama-model` で指定する。
 - **従来モード**: Ollama が不要。`--legacy-line-speak` でログ行を正規化したうえでそのまま読み上げる。
 
 ## 想定するエージェント CLI
@@ -34,19 +34,18 @@ Cursor CLI は環境によって `cursor-agent` など別のコマンド名に�
 
 ```bash
 filepath=/tmp/agent-cli.log
-script -f -q -a "$filepath" agent    # Cursor CLI の例
-```
 
-```bash
-script -f -q -a "$filepath" claude   # Claude Code の例
-```
+# Cursor CLI の例
+script -f -q -a "$filepath" agent
 
-```bash
-script -f -q -a "$filepath" codex    # Codex の例
-```
+# Claude Code の例
+script -f -q -a "$filepath" claude
 
-```bash
-script -f -q -a "$filepath" copilot # GitHub Copilot CLI の例
+# Codex の例
+script -f -q -a "$filepath" codex
+
+# GitHub Copilot CLI の例
+script -f -q -a "$filepath" copilot
 ```
 
 ### 既定（Ollama で音声向けに整形）
@@ -72,9 +71,12 @@ npm run agent:speak -- "$filepath" --legacy-line-speak
 | `--from-start` | ログを先頭から処理 |
 | `--poll-interval <ms>` | ファイル監視の間隔（既定 400） |
 | `--ollama-url <url>` | Ollama のベース URL（既定 `http://127.0.0.1:11434`） |
-| `--ollama-model <name>` | モデル名（既定 `gpt-oss:20b`） |
+| `--ollama-model <name>` | モデル名（既定 `gemma4:e4b`） |
 | `--debounce-ms <ms>` | 追記が止まってから Ollama を呼ぶまでの待ち（既定 20000） |
-| `--snapshot-max-chars <n>` | Ollama に渡すテキスト長の上限（既定 48000） |
+| `--ollama-timeout-ms <ms>` | `/api/chat` の応答待ち上限（既定 180000）。これを超えると打ち切り |
+| `--snapshot-max-chars <n>` | メモリ上のスナップショット連結の上限文字数（末尾優先、既定 48000） |
+| `--llm-tail-lines <n>` | Ollama に送るログ末尾の最大行数（既定 40） |
+| `--llm-prompt-max-chars <n>` | 行で絞ったあとのプロンプト上限文字数（末尾優先、既定 12000） |
 
 ```bash
 npm run agent:speak -- "$filepath" --voice Kyoko --rate 260

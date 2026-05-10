@@ -14,6 +14,10 @@ test('parseArgs parses defaults', () => {
   assert.equal(opts.legacyLineSpeak, false);
   assert.match(opts.ollamaUrl, /^http:/);
   assert.equal(opts.debounceMs, 20000);
+  assert.equal(opts.ollamaModel, 'gemma4:e4b');
+  assert.equal(opts.ollamaTimeoutMs, 180000);
+  assert.equal(opts.llmTailLines, 40);
+  assert.equal(opts.llmPromptMaxChars, 12000);
 });
 
 test('parseArgs throws CliHelp', () => {

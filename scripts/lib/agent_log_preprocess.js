@@ -170,6 +170,30 @@ function appendSnapshotTail(snapshot, addition, maxChars) {
   return combined.slice(-maxChars);
 }
 
+/** Reduce snapshot text before sending to an LLM: last maxLines lines, then tail capped by maxChars. */
+function truncateSnapshotForLlm(text, maxLines, maxChars) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  let lines = trimmed.split('\n');
+  if (Number.isInteger(maxLines) && maxLines > 0 && lines.length > maxLines) {
+    lines = lines.slice(-maxLines);
+  }
+
+  let out = lines.join('\n').trim();
+  if (!out) {
+    return '';
+  }
+
+  if (Number.isInteger(maxChars) && maxChars > 0 && out.length > maxChars) {
+    out = out.slice(-maxChars).trim();
+  }
+
+  return out;
+}
+
 function processIncrementalChunk(rawCarry, lastMeaningfulLine, chunk) {
   const normalized = normalizeForSpeech(rawCarry + chunk);
   const lines = normalized.split('\n');
@@ -218,6 +242,7 @@ module.exports = {
   refineMeaningfulLines,
   collapseConsecutiveDuplicates,
   appendSnapshotTail,
+  truncateSnapshotForLlm,
   processIncrementalChunk,
   flushCarryIfLong,
 };

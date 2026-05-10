@@ -7,6 +7,7 @@ const {
   normalizeForSpeech,
   refineMeaningfulLines,
   appendSnapshotTail,
+  truncateSnapshotForLlm,
   processIncrementalChunk,
   collapseWhitespace,
 } = require('../scripts/lib/agent_log_preprocess.js');
@@ -40,6 +41,22 @@ test('appendSnapshotTail preserves tail when over limit', () => {
   const snapshot = appendSnapshotTail('', big, 30);
   assert.ok(snapshot.endsWith(tail));
   assert.ok(snapshot.length <= 30);
+});
+
+test('truncateSnapshotForLlm keeps last N lines', () => {
+  const lines = Array.from({ length: 50 }, (_, i) => `L${i}`);
+  const text = lines.join('\n');
+  const out = truncateSnapshotForLlm(text, 40, 1_000_000);
+  assert.equal(out.split('\n').length, 40);
+  assert.ok(out.startsWith('L10'));
+  assert.ok(out.endsWith('L49'));
+});
+
+test('truncateSnapshotForLlm caps by characters from tail', () => {
+  const text = `${'a'.repeat(100)}\nKEEP_TAIL`;
+  const out = truncateSnapshotForLlm(text, 100, 12);
+  assert.ok(out.endsWith('KEEP_TAIL'));
+  assert.ok(out.length <= 12);
 });
 
 test('processIncrementalChunk dedupes repeats across redraws', () => {

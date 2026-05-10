@@ -11,6 +11,7 @@ const {
   collapseWhitespace,
   splitForSpeech,
   appendSnapshotTail,
+  truncateSnapshotForLlm,
   processIncrementalChunk,
   isDecorativeLine,
 } = require('./lib/agent_log_preprocess.js');
@@ -42,7 +43,10 @@ function printUsage(exitCode = 0) {
     '  --ollama-url <url>        Ollama API base URL',
     '  --ollama-model <name>     Ollama model name',
     '  --debounce-ms <ms>        Quiet period before calling Ollama (default 20000)',
-    '  --snapshot-max-chars <n>  Max characters sent to Ollama',
+    '  --ollama-timeout-ms <ms>  Max wait for Ollama /api/chat response (default 180000)',
+    '  --snapshot-max-chars <n>  Rolling snapshot buffer size (characters)',
+    '  --llm-tail-lines <n>      Lines from snapshot tail sent to Ollama (default 40)',
+    '  --llm-prompt-max-chars <n> Character cap on LLM prompt after line trim (default 12000)',
     '  --legacy-line-speak       Skip Ollama; speak cleaned lines directly',
     '',
     'Examples:',
@@ -158,7 +162,22 @@ function clearDebounce() {
 }
 
 function scheduleRewrite(epoch) {
+  const hadPendingDebounce = Boolean(state.debounceTimer);
   clearDebounce();
+  if (hadPendingDebounce) {
+    const stamp = new Date().toLocaleString('sv-SE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    console.error(
+      `[${stamp}] Debounce reset: log still updating; waiting ${options.debounceMs} ms of quiet time before Ollama.`
+    );
+  }
   state.debounceTimer = setTimeout(() => {
     state.debounceTimer = null;
     void runRewriteCycle(epoch);
@@ -170,7 +189,11 @@ async function runRewriteCycle(epoch) {
     return;
   }
 
-  const transcript = state.snapshot.trim();
+  const transcript = truncateSnapshotForLlm(
+    state.snapshot.trim(),
+    options.llmTailLines,
+    options.llmPromptMaxChars
+  );
   if (!transcript) {
     return;
   }
@@ -186,12 +209,20 @@ async function runRewriteCycle(epoch) {
       transcript,
       signal: controller.signal,
       logToStdout: true,
+      timeoutMs: options.ollamaTimeoutMs,
     });
   } catch (error) {
     if (error && error.name === 'AbortError') {
       return;
     }
     console.error(`Ollama rewrite failed: ${error.message}`);
+    interruptSpeech();
+    try {
+      await speakBlocking(speechMessageForRewriteError(error));
+    } catch (sayError) {
+      const detail = sayError instanceof Error ? sayError.message : String(sayError);
+      console.error(`Failed to run "say" for error notice: ${detail}`);
+    }
     process.exit(1);
   } finally {
     if (state.rewriteAbort === controller) {
@@ -251,6 +282,41 @@ function drainQueue() {
   });
 }
 
+function speechMessageForRewriteError(error) {
+  const msg = error instanceof Error ? error.message : String(error);
+  if (/timed out/i.test(msg)) {
+    return '音声読み上げ用の整形が、応答待ちでタイムアウトしました。';
+  }
+  if (/HTTP \d+/.test(msg)) {
+    return '音声読み上げ用の整形リクエストが、サーバー側で失敗しました。';
+  }
+  return '音声読み上げ用の整形処理でエラーが発生しました。';
+}
+
+function speakBlocking(text) {
+  const cleaned = collapseWhitespace(text);
+  if (!cleaned) {
+    return Promise.resolve();
+  }
+
+  const args = [];
+  if (options.voice) {
+    args.push('-v', options.voice);
+  }
+  if (options.rate) {
+    args.push('-r', String(options.rate));
+  }
+  args.push(cleaned);
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('say', args, { stdio: 'ignore' });
+    child.once('error', reject);
+    child.once('exit', () => {
+      resolve();
+    });
+  });
+}
+
 function enqueueSpeech(text) {
   const cleaned = collapseWhitespace(text);
   if (!cleaned) {
@@ -289,9 +355,6 @@ function processVoiceRewriteChunk(chunk) {
     return;
   }
 
-  interruptSpeech();
-  abortRewrite();
-
   const step = processIncrementalChunk(state.rawCarry, state.lastMeaningfulLine, chunk);
   state.rawCarry = step.carry;
   state.lastMeaningfulLine = step.lastMeaningfulLine;
@@ -312,6 +375,13 @@ function processVoiceRewriteChunk(chunk) {
   }
 
   if (state.snapshot !== snapshotBefore) {
+    if (state.rewriteAbort) {
+      console.error(
+        '[agent-speak] 新しいログを検出したため、進行中の Ollama リクエストを中断して再実行します。'
+      );
+    }
+    interruptSpeech();
+    abortRewrite();
     state.snapshotEpoch += 1;
     scheduleRewrite(state.snapshotEpoch);
   }
@@ -420,7 +490,7 @@ async function bootstrap() {
       process.exit(1);
     }
     console.error(
-      `Voice rewrite via Ollama model "${options.ollamaModel}" (${options.ollamaUrl}), debounce ${options.debounceMs} ms`
+      `Voice rewrite via Ollama model "${options.ollamaModel}" (${options.ollamaUrl}), debounce ${options.debounceMs} ms, chat timeout ${options.ollamaTimeoutMs} ms, LLM prompt last ${options.llmTailLines} lines / ${options.llmPromptMaxChars} chars max`
     );
   }
 
