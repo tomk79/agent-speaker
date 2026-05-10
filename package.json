@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "agent:speak": "node ./scripts/agent_speak.js"
+  }
+}
