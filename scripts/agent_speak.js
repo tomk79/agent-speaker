@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Tail a terminal agent log and speak new lines via macOS `say`.
+// Intended for logs from: Cursor CLI, Claude Code, Codex, GitHub Copilot CLI (any similar CLI works).
 
 const fs = require('node:fs');
 const path = require('node:path');

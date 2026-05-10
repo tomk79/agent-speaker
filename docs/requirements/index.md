@@ -4,6 +4,17 @@
 
 CLI タイプのコーディングエージェントは、ターミナル上で長文の標準出力を返すことがある。本ツールは、その出力を**ログファイルに集約**し、別プロセスでファイルを**監視しながら macOS の音声合成（`say`）で読み上げる**ことで、ユーザーが画面を見続けなくても進捗や結果を把握できるようにする。
 
+標準出力・標準エラーが一つのログに記録される別の CLI でも利用できるが、**本プロダクトが説明・利用シナリオ・受け入れテストの例として想定する対象**は次の4製品に限定する。
+
+| 製品 | 起動コマンドの例 |
+|---|---|
+| Cursor CLI | `agent`（環境により `cursor-agent` 等） |
+| Claude Code | `claude` |
+| Codex | `codex` |
+| GitHub Copilot CLI | `copilot` |
+
+実行ファイル名はインストール方法により異なる場合があり、実際の起動は各製品の公式ドキュメントに従う。
+
 ## リポジトリ内のプロダクト
 
 | 要素 | 説明 |
@@ -18,7 +29,11 @@ CLI タイプのコーディングエージェントは、ターミナル上で�
 エージェント側の標準出力をファイルへ確実に書き出すため、macOS の `script(1)` でセッションを包む。読み上げは**別ターミナル**で本ツールを起動する。
 
 1. **ログ記録（ターミナル A）**  
-   `script -f -q -a "$filepath" your-agent-cli-command`  
+   想定エージェントに応じて例えば次のようにする（`...` は実際のサブコマンドや引数）。  
+   - `script -f -q -a "$filepath" agent ...`（Cursor CLI）  
+   - `script -f -q -a "$filepath" claude ...`（Claude Code）  
+   - `script -f -q -a "$filepath" codex ...`（Codex）  
+   - `script -f -q -a "$filepath" copilot ...`（GitHub Copilot CLI）  
    - `-f`: 書き込み後にフラッシュしやすくする。  
    - `-q`: 開始・終了メッセージを抑える。  
    - `-a`: 指定ログファイルへ追記する。  
@@ -44,7 +59,7 @@ CLI タイプのコーディングエージェントは、ターミナル上で�
 flowchart LR
   subgraph termA [Terminal_A]
     Wrap["script_wrap"]
-    Agent["coding_agent"]
+    Agent["terminal_agent_CLI"]
     Wrap --> Agent
   end
   Log["log_file"]
@@ -61,6 +76,7 @@ flowchart LR
   SayCmd -->|audio| User
 ```
 
+- **terminal_agent_CLI**: ターミナル上のエージェント CLI の総称。想定対象は Cursor CLI / Claude Code / Codex / GitHub Copilot CLI とする。
 - **入力**: 単一のログファイルパス（起動時に絶対パスへ解決する）。
 - **出力**: `say` による音声（標準出力での読み上げテキストの出力は要件としない）。
 
@@ -182,7 +198,7 @@ flowchart LR
 
 #### 8. 受け入れテスト
 
-- README の手順どおりに `script` でログを取り、`npm run agent:speak` で追記が読み上げられることを確認する。
+- README の手順どおりに `script` でログを取り、`npm run agent:speak` で追記が読み上げられることを確認する。可能なら想定4製品のいずれかの CLI で実際にセッションを記録して確認する。
 
 ### テスト自動化方針
 
@@ -193,7 +209,7 @@ flowchart LR
 
 ### テストデータ
 
-- サンプルログ（ANSI 付き・長行・ローテーション再現用など）をリポジトリの `sample/` 等で管理してよい。
+- サンプルログ（ANSI 付き・長行・ローテーション再現用など）をリポジトリの `sample/` 等で管理してよい（例: [`sample/cursor-agent.log`](../../sample/cursor-agent.log) は Cursor CLI の出力例）。
 - 機密を含む実ログはコミットしない。
 
 ### 品質基準
