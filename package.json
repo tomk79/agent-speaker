@@ -1,5 +1,9 @@
 {
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "agent:speak": "node ./scripts/agent_speak.js"
+    "agent:speak": "node ./scripts/agent_speak.js",
+    "test": "node --test test/**/*.test.js"
   }
 }
